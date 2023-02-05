@@ -7,6 +7,21 @@ from session_engine import get_session
 session = get_session()()
 
 
+def commiting_deco(func):
+    ''' :return None if problems occured '''
+    def wrapper(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+            session.commit()
+            return '[SUCCESS]: data_added'
+        except Exception as ex:
+            session.rollback()
+            print(f'[ERROR]: {ex}')
+            return
+
+    return wrapper
+
+
 def get_poi_object(poi_id: int):
     return session.query(PoiDB).filter(PoiDB.poi_id == poi_id).first()
 
@@ -23,54 +38,41 @@ def get_item_obj(item_id: int):
     return session.query(ItemDB).filter(ItemDB.item_id == item_id).first()
 
 
+@commiting_deco
 def add_item(name: str, price: int):
-    # TODO попытаться реализовать через декоратор блок try/except
-    try:
-        session.add(ItemDB(item_name=name, avg_price=price))
-        session.commit()
-        return 'db.Item_added'
-    except Exception as ex:
-        session.rollback()
-        print(f'[ERROR]: {ex}')
-        return
+    session.add(ItemDB(item_name=name, avg_price=price))
 
 
-
+@commiting_deco
 def add_star_system(sys_name: str, star_class: str):
-    # TODO добавить везде блок try/except c session.rollback()
     session.add(StarSystemDB(system_name=sys_name, star_class=star_class))
-    session.commit()
-    print('db.system_added')
 
 
+@commiting_deco
 def add_place(name: str, system_id: int):
     session.add(PlaceDB(place_name=name, system_id=system_id))
-    session.commit()
-    print('db.place added')
 
 
+@commiting_deco
 def add_poi(name: str, faction_id: int):
     session.add(PoiDB(poi_name=name, faction_id=faction_id))
-    session.commit()
-    print('db.POI_added')
 
 
+@commiting_deco
 def add_resource_location(resource_id: int, place_id: int):
     resource_obj = get_resource_obj(resource_id)
     place_obj = get_place_obj(place_id)
     resource_obj.places.append(place_obj)
-    session.commit()
-    print('db.resource_location_added')
 
 
+@commiting_deco
 def add_poi_location(poi_id: int, place_id: int):
     poi_obj = get_poi_object(poi_id)
     place_obj = get_place_obj(place_id)
     poi_obj.places.append(place_obj)
-    session.commit()
-    print('db.poi_location_added')
 
 
+@commiting_deco
 def add_item_market(poi_id: int, item_id: int, buy_price: int = 0, buy_amount: int = 0, sell_price: int = 0,
                     sell_amount: int = 0):
     item = get_item_obj(item_id)
@@ -79,9 +81,6 @@ def add_item_market(poi_id: int, item_id: int, buy_price: int = 0, buy_amount: i
     market = MarketItemDB(buy_price=buy_price, buy_amount=buy_amount, sell_price=sell_price, sell_amount=sell_amount)
     market.poi = poi
     market.item = item
-
-    session.commit()
-    print('db.market_item_added')
 
 
 class DataCache:
@@ -123,7 +122,6 @@ class DataCache:
         self.update_item_dict()
         self.update_faction_dict()
         self.update_resource_dict()
-        # print('refreshed', self.item_dict.keys())
 
 
 class DataLoader:
@@ -139,6 +137,35 @@ class DataLoader:
 
     def get_data(self):
         return self.data
+
+# class VersatileLoader():
+#     ''' loads sqlalchemy objects with ORM from DB and stores '''
+#
+#     def __init__(self, ):
+#         self.session = session
+#         self.data = []
+#
+#     def get_data(self):
+#         return self.data
+#
+#     def load_resource(self, res_name=None):
+#         if res_name:
+#             self._load_resource_single(res_name)
+#         else:
+#             self._load_resource_current()
+#
+#     def _load_resource_single(self, res_name: str, res_id: int = None):
+#         ''' loads single resource object to self.data'''
+#         # TODO: сделать так чтоб можно было передавать и name и id по желанию
+#         self.data = self.session.query(ResourceDB).filter(ResourceDB.resource_name == res_name).all()
+#
+#     def load_resource_all(self):
+#         ''' loads all objects from item_table'''
+#         self.data = self.session.query(ResourceDB).all()
+#
+#     def _load_resource_current(self):
+#         '''loads a tuples of indexes [(resource_id, place_id)]'''
+#         self.data = self.session.query(ResourceDB).join(resource_location).all()
 
 
 class ResourceLoader(DataLoader):
@@ -181,6 +208,24 @@ class ItemLoader(DataLoader):
         self.data = self.session.query(ItemDB).join(MarketItemDB).all()
 
 
+class PoiLoader(DataLoader):
+    def load_poi(self, poi_name=None):
+        if poi_name:
+            self._load_poi_single(poi_name)
+        else:
+            self._load_poi_current()
+
+    def load_poi_all(self):
+        self.data = self.session.query(PoiDB).all()
+
+    def _load_poi_single(self, poi_name: str):
+        self.data = self.session.query(PoiDB).filter(PoiDB.poi_name == poi_name).all()
+
+    def _load_poi_current(self):
+        self.data = self.session.query(PoiDB).join(poi_location).all()
+
+
+
 class TableLoader:
     '''Base Class: Takes the DataLoader instance and converts into table like: [(data, ), ]'''
     def __init__(self, obj_list: DataLoader | list = None):
@@ -190,7 +235,7 @@ class TableLoader:
         elif isinstance(obj_list, list):
             self.objects_list = obj_list
 
-        self.raw_table = []
+        self.poi_place_raw_table = []
         self.res_table = []
 
     def load_obj(self, obj: DataLoader):
@@ -210,6 +255,22 @@ class ResourceTable(TableLoader):
         self.convert_res_data()
         res_table = []
         for row in self.raw_table:
+            row_table = [(row[1], el.place_name) for el in row[2]]
+            res_table += row_table
+        self.res_table = res_table
+        return self.res_table
+
+
+class PoiTable(TableLoader):
+    ''' Takes the DataLoader instance and converts into table like: [(int, str,[]), ]'''
+    def convert_poi_data(self):
+        self.poi_place_raw_table = [(obj.poi_id, obj.poi_name, obj.places) for obj in self.objects_list]
+
+    def make_poi_table(self):
+        ''' :return table format [(str, str...),]'''
+        self.convert_poi_data()
+        res_table = []
+        for row in self.poi_place_raw_table:
             row_table = [(row[1], el.place_name) for el in row[2]]
             res_table += row_table
         self.res_table = res_table

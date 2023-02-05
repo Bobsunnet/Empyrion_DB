@@ -91,7 +91,6 @@ class PoiDB(Base):
     places = relationship("PlaceDB", secondary=poi_location, backref='pois')
     items = relationship("MarketItemDB", back_populates='poi')
 
-
     def __repr__(self):
         return f'{self.poi_name} DB_obj'
 

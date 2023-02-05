@@ -3,6 +3,8 @@ from PyQt5.QtWidgets import QWidget, QTableView, QHBoxLayout, QHeaderView
 from PyQt5.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 
+
+
 class TableModel(QAbstractTableModel):
     def __init__(self, in_data: list):
         super().__init__()
@@ -68,11 +70,8 @@ class TableWindow(QWidget):
         self.setObjectName('ResultTable')
 
         self.headers_list = headers_list
-        if not headers_list:
-            self.test_headers = ['Resource', 'Place']
-
         self.model = TableModel(in_data)
-        for i, name in enumerate(self.test_headers):
+        for i, name in enumerate(self.headers_list):
             try:
                 self.model.setHeaderData(i, Qt.Orientation.Horizontal, name)
             except Exception as ex:

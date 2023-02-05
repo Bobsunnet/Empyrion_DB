@@ -4,7 +4,25 @@ import db_interface as db
 import TableView
 from FieldChecker import FieldChecker
 
-validator_digits = QtGui.QRegExpValidator(QtCore.QRegExp(r'[0-9]+'))
+ITEM_HEADERS = ['Item Name', 'Place','Avg Price', 'Buy Price', 'Buy Amount', 'Sell Price', 'Sell Amount']
+POI_HEADERS = []
+RESOURCE_HEADERS = ['Resource', 'Place']
+
+VALIDATOR_DIGITS = QtGui.QRegExpValidator(QtCore.QRegExp(r'[0-9]+'))
+
+
+def success_log_deco(func):
+    def wrapper(*args, **kwargs):
+        operation_status = func(*args, **kwargs)
+        if operation_status:
+            print(operation_status)
+        else:
+            print('trying to drow error_box')
+            #обращаемся к экземпляру окна MainWindow() и вызываем у него метод отображения сообщения
+            window.draw_message_box('ERROR', 'Some error occurred. Please look the console log')
+        return operation_status
+
+    return wrapper
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -65,7 +83,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(top_layout_widget)
 
     def completer_setup(self):
-        # TODO: доделать комплитер так, чтобы он обновлялся после каждого добавления в бд
         self.item_completer = QtWidgets.QCompleter(self.data_cache.item_dict.keys(), self)
         self.item_completer.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
 
@@ -211,7 +228,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.label_avg_price = QtWidgets.QLabel('Avg Price')
         self.lnedit_avg_price = QtWidgets.QLineEdit()
-        self.lnedit_avg_price.setValidator(validator_digits)
+        self.lnedit_avg_price.setValidator(VALIDATOR_DIGITS)
 
         self.btn_add_item = QtWidgets.QPushButton('Add new item')
         self.btn_add_item.clicked.connect(self.btn_add_new_item_clicked)
@@ -243,19 +260,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.label_buy_price = QtWidgets.QLabel('Buy Price')
         self.lnedit_buy_price = QtWidgets.QLineEdit()
-        self.lnedit_buy_price.setValidator(validator_digits)
+        self.lnedit_buy_price.setValidator(VALIDATOR_DIGITS)
 
         self.label_buy_amount = QtWidgets.QLabel('Buy Amount')
         self.lnedit_buy_amount = QtWidgets.QLineEdit()
-        self.lnedit_buy_amount.setValidator(validator_digits)
+        self.lnedit_buy_amount.setValidator(VALIDATOR_DIGITS)
 
         self.label_sell_price = QtWidgets.QLabel('Sell Price')
         self.lnedit_sell_price = QtWidgets.QLineEdit()
-        self.lnedit_sell_price.setValidator(validator_digits)
+        self.lnedit_sell_price.setValidator(VALIDATOR_DIGITS)
 
         self.label_sell_amount = QtWidgets.QLabel('Sell Amount')
         self.lnedit_sell_amount = QtWidgets.QLineEdit()
-        self.lnedit_sell_amount.setValidator(validator_digits)
+        self.lnedit_sell_amount.setValidator(VALIDATOR_DIGITS)
 
         self.btn_add_market_item = QtWidgets.QPushButton('Add_market_item')
         self.btn_add_market_item.clicked.connect(self.btn_new_market_item_clicked)
@@ -303,7 +320,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lbl_search_poi = QtWidgets.QLabel("Chose POI")
         self.lnedit_search_poi = QtWidgets.QLineEdit()
         self.lnedit_search_poi.setPlaceholderText('Type POI name')
-        self.btn_search_poi = QtWidgets.QPushButton('Search')
+        self.btn_search_poi_single = QtWidgets.QPushButton('Search')
+        self.btn_search_poi_single.clicked.connect(self.btn_search_poi_clicked)
+        self.btn_search_poi_all = QtWidgets.QPushButton('Show All')
+        self.btn_search_poi_all.clicked.connect(self.btn_search_poi_all_clicked)
 
         self.lbl_search_item = QtWidgets.QLabel("Chose Item")
         self.lnedit_search_item = QtWidgets.QLineEdit()
@@ -323,7 +343,8 @@ class MainWindow(QtWidgets.QMainWindow):
         search_widget_second_layout = QtWidgets.QHBoxLayout()
         search_widget_second_layout.addWidget(self.lbl_search_poi)
         search_widget_second_layout.addWidget(self.lnedit_search_poi)
-        search_widget_second_layout.addWidget(self.btn_search_poi)
+        search_widget_second_layout.addWidget(self.btn_search_poi_all)
+        search_widget_second_layout.addWidget(self.btn_search_poi_single)
 
         search_widget_third_layout = QtWidgets.QHBoxLayout()
         search_widget_third_layout.addWidget(self.lbl_search_item)
@@ -371,7 +392,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._load_resource_all()
 
     def btn_search_poi_clicked(self):
-        pass
+        self._load_poi_single()
+
+    def btn_search_poi_all_clicked(self):
+        self._load_poi_all()
 
     def btn_search_item_clicked(self):
         self._load_item_single()
@@ -383,16 +407,19 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.checkbox_new_poi.isChecked():
             self.add_new_poi()
             self.data_cache.update_poi_dict()
+            self.completer_setup()
         else:
             self.add_poi_location()
 
     def btn_add_new_item_clicked(self):
         self.add_new_item()
         self.data_cache.update_item_dict()
+        self.completer_setup()
 
     def btn_add_place_clicked(self):
         self.add_new_place()
         self.data_cache.update_place_dict()
+        self.completer_setup()
 
     def btn_add_resource_location_clicked(self):
         self.add_resource_location()
@@ -401,8 +428,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.add_market_item()
 
     # ____________________________________ <SLOTS> _____________________________________________
-    def draw_result_table(self, table_data:list):
-        self.table_window = TableView.TableWindow(table_data)
+    def draw_result_table(self, table_data:list, table_headers):
+        self.table_window = TableView.TableWindow(table_data, table_headers)
         self.table_window.show()
 
     def draw_message_box(self, title, message):
@@ -420,15 +447,13 @@ class MainWindow(QtWidgets.QMainWindow):
     # _____________________________________ <LOGIC> _____________________________________________
 
     # _____________________________________ ADD_DATA ___________________________________________
+    @ success_log_deco
     def add_new_item(self):
         name = self.lnedit_item.text()
         price = int(self.lnedit_avg_price.text())
-        adding_result = db.add_item(name, price)
-        if adding_result:
-            print(adding_result)
-        else:
-            self.draw_message_box('ERROR', 'Some error occurred. Please look the console log')
+        return db.add_item(name, price)
 
+    @success_log_deco
     def add_new_place(self):
         system_input = self.lnedit_system.text().lower()
         place_input = self.lnedit_place.text().lower()
@@ -436,26 +461,35 @@ class MainWindow(QtWidgets.QMainWindow):
 
         system_id = self.data_cache.system_dict.get(system_input)
         if not system_id:
-            db.add_star_system(system_input, star_class)
+            self._add_new_system(system_input, star_class)
             self.data_cache.update_system_dict()
-            system_id = self.data_cache.system_dict.get(system_input)
-        db.add_place(place_input, system_id)
+        system_id = self.data_cache.system_dict.get(system_input)
 
+        return db.add_place(place_input, system_id)
+
+    @success_log_deco
+    def _add_new_system(self,sys_name, star_cls):
+        return db.add_star_system(sys_name, star_cls)
+
+    @success_log_deco
     def add_new_poi(self):
         poi_name = self.lnedit_poi.text()
         faction = self.combox_faction.currentText()
-        db.add_poi(poi_name, self.data_cache.faction_dict.get(faction))
+        return db.add_poi(poi_name, self.data_cache.faction_dict.get(faction))
 
+    @success_log_deco
     def add_poi_location(self):
         poi_name = self.lnedit_poi.text()
         place_name = self.lnedit_place_poi.text()
-        db.add_poi_location(self.data_cache.poi_dict.get(poi_name), self.data_cache.place_dict.get(place_name))
+        return db.add_poi_location(self.data_cache.poi_dict.get(poi_name), self.data_cache.place_dict.get(place_name))
 
+    @success_log_deco
     def add_resource_location(self):
         place_id = self.data_cache.place_dict.get(self.lnedit_place_res.text())
         res_id = self.data_cache.resource_dict.get(self.combox_resource.currentText())
-        db.add_resource_location(res_id, place_id)
+        return db.add_resource_location(res_id, place_id)
 
+    @success_log_deco
     def add_market_item(self):
         poi_id = self.data_cache.poi_dict.get(self.lnedit_poi_item.text())
         item_id = self.data_cache.item_dict.get(self.lnedit_item_market.text())
@@ -465,7 +499,7 @@ class MainWindow(QtWidgets.QMainWindow):
         sell_price = self._string_converter(self.lnedit_sell_price.text())
         sell_amount = self._string_converter(self.lnedit_sell_amount.text())
 
-        db.add_item_market(poi_id, item_id, buy_price, buy_amount, sell_price, sell_amount)
+        return db.add_item_market(poi_id, item_id, buy_price, buy_amount, sell_price, sell_amount)
 
     # _______________________________________ SEARCHING DATA ___________________________________
 
@@ -483,7 +517,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # конвертируем данные в таблицу и рисуем результат
         res_table: list = self.create_resource_table(res_data)
         if res_table:
-            self.draw_result_table(res_table)
+            self.draw_result_table(res_table, RESOURCE_HEADERS)
         else:
             self.draw_message_empty_result()
 
@@ -497,7 +531,22 @@ class MainWindow(QtWidgets.QMainWindow):
     def search_item(self, item_data: list):
         item_table: list = self.create_item_table(item_data)
         if item_table:
-            self.draw_result_table(item_table)
+            self.draw_result_table(item_table, ITEM_HEADERS)
+        else:
+            self.draw_message_empty_result()
+
+    def _load_poi_single(self):
+        poi_name: str = self.lnedit_search_poi.text()
+        self.search_poi(self.load_poi_data(poi_name))
+
+    def _load_poi_all(self):
+        self.search_poi(self.load_poi_data())
+
+
+    def search_poi(self, poi_data: list):
+        poi_table: list = self.create_poi_table(poi_data)
+        if poi_table:
+            self.draw_result_table(poi_table, POI_HEADERS)
         else:
             self.draw_message_empty_result()
 
@@ -520,6 +569,12 @@ class MainWindow(QtWidgets.QMainWindow):
         res_data.load_resource(res_name)
         return res_data.get_data()
 
+    @staticmethod
+    def load_poi_data(poi_name=''):
+        poi_data = db.PoiLoader()
+        poi_data.load_poi(poi_name)
+        return poi_data.get_data()
+
     # _____________________________ CREATING TABLES(temporary) ________________________
     @staticmethod
     def create_item_table(item_data):
@@ -530,6 +585,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def create_resource_table(res_data: list):
         res_table = db.ResourceTable(res_data)
         return res_table.make_resource_table()
+
+    @staticmethod
+    def create_poi_table(poi_data: list):
+        print('creating table started')
+        poi_table = db.PoiTable(poi_data)
+        return poi_table.make_poi_table()
 
     # _____________________________________ MISC ______________________________________
 
