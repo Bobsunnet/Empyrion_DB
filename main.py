@@ -502,95 +502,73 @@ class MainWindow(QtWidgets.QMainWindow):
         return db.add_item_market(poi_id, item_id, buy_price, buy_amount, sell_price, sell_amount)
 
     # _______________________________________ SEARCHING DATA ___________________________________
+    def show_search_result(self,table_converter, search_data, headers:list):
+        '''
+        :param table_converter: table-converter класс
+        :param search_data: список обьектов из ORM
+        :param headers: headers for table
+        :return:
+        '''
+        result_table: list = self.create_data_table(table_converter, search_data)
+        if result_table:
+            self.draw_result_table(result_table, headers)
+        else:
+            self.draw_message_empty_result()
 
     def _load_resource_single(self):
         #загружаем данные из БД по тексту в комбобоксе.
         res_name: str = self.combox_search_resource.currentText()
-        self.search_resource(self.load_resource_data(res_name))
+        data = self.load_data_from_table(db.ResourceLoader, res_name)
+        self.show_search_result(db.ResourceTable, data, RESOURCE_HEADERS)
 
-            # TODO попробовать отрефакторить два метода в один
+        # TODO попробовать отрефакторить два метода в один
     def _load_resource_all(self):
         # загружаем данные из БД
-        self.search_resource(self.load_resource_data())
-
-    def search_resource(self, res_data:list):
-        # конвертируем данные в таблицу и рисуем результат
-        res_table: list = self.create_resource_table(res_data)
-        if res_table:
-            self.draw_result_table(res_table, RESOURCE_HEADERS)
-        else:
-            self.draw_message_empty_result()
+        data = self.load_data_from_table(db.ResourceLoader)
+        self.show_search_result(db.ResourceTable, data, RESOURCE_HEADERS)
 
     def _load_item_single(self):
         item_name = self.lnedit_search_item.text().lower()
-        self.search_item(self.load_item_data(item_name))
+        data = self.load_data_from_table(db.ItemLoader, item_name)
+        self.show_search_result(db.ItemTable, data, ITEM_HEADERS)
 
     def _load_item_all(self):
-        self.search_item(self.load_item_data())
-
-    def search_item(self, item_data: list):
-        item_table: list = self.create_item_table(item_data)
-        if item_table:
-            self.draw_result_table(item_table, ITEM_HEADERS)
-        else:
-            self.draw_message_empty_result()
+        data = self.load_data_from_table(db.ItemLoader)
+        self.show_search_result(db.ItemTable, data, ITEM_HEADERS)
 
     def _load_poi_single(self):
         poi_name: str = self.lnedit_search_poi.text()
-        self.search_poi(self.load_poi_data(poi_name))
+        data = self.load_data_from_table(db.PoiLoader, poi_name)
+        self.show_search_result(db.PoiTable, data, POI_HEADERS)
 
     def _load_poi_all(self):
-        self.search_poi(self.load_poi_data())
+        data = self.load_data_from_table(db.PoiLoader)
+        self.show_search_result(db.PoiTable, data, POI_HEADERS)
 
-
-    def search_poi(self, poi_data: list):
-        poi_table: list = self.create_poi_table(poi_data)
-        if poi_table:
-            self.draw_result_table(poi_table, POI_HEADERS)
-        else:
-            self.draw_message_empty_result()
 
     # ___________________________________ LOADING DATA (temporary) _____________________________
-    @staticmethod
-    def load_item_data(item_name=''):
+    def load_data_from_table(self, data_loader: db.DataLoader, data_name='') -> list:
+        '''
+        загружает данные из БД по запросу через класс-загрузчик. вовзращает список обьектов ORM
+        :param data_loader: класс-загрузчик
+        :param data_name: имя записи в бд. если не указан - будет передана вся таблица с через JOIN
+        :return: список обьектов алхимии
+        '''
         # TODO 1. возможно использовать датакеш для хранения результатов поиска
-        # TODO 2. попробовать отрефакторить
-        ''':return list of resource data object'''
-        item_data = db.ItemLoader()
-        item_data.load_item(item_name)
-        return item_data.get_data()
-
-    @staticmethod
-    def load_resource_data(res_name=''):
-        # TODO 1. возможно использовать датакеш для хранения результатов поиска
-        # TODO 2. попробовать отрефакторить
-        ''':return list of resource data object'''
-        res_data = db.ResourceLoader()
-        res_data.load_resource(res_name)
-        return res_data.get_data()
-
-    @staticmethod
-    def load_poi_data(poi_name=''):
-        poi_data = db.PoiLoader()
-        poi_data.load_poi(poi_name)
-        return poi_data.get_data()
+        data_instance = data_loader()
+        data_instance.load_data(data_name)
+        return data_instance.get_data()
 
     # _____________________________ CREATING TABLES(temporary) ________________________
-    @staticmethod
-    def create_item_table(item_data):
-        item_table = db.ItemTable(item_data)
-        return item_table.make_item_table()
+    def create_data_table(self,table_converter: db.TableLoader, search_data: list) -> list:
+        '''создает таблицу удобном для модели виде
 
-    @staticmethod
-    def create_resource_table(res_data: list):
-        res_table = db.ResourceTable(res_data)
-        return res_table.make_resource_table()
-
-    @staticmethod
-    def create_poi_table(poi_data: list):
-        print('creating table started')
-        poi_table = db.PoiTable(poi_data)
-        return poi_table.make_poi_table()
+        :param table_converter: класс-конвертер таблицы
+        :param search_data: список обьектов ORM из БД
+        :return: возвращает готовую к отображению таблицу
+        '''
+        data_table = table_converter(search_data)
+        return data_table.make_table()
 
     # _____________________________________ MISC ______________________________________
 

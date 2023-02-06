@@ -66,7 +66,7 @@ class TableModel(QAbstractTableModel):
 class TableWindow(QWidget):
     def __init__(self, in_data, headers_list=None):
         super(TableWindow, self).__init__()
-        self.setGeometry(600, 300, 500, 400)
+        self.setGeometry(600, 300, 710, 600)
         self.setObjectName('ResultTable')
 
         self.headers_list = headers_list

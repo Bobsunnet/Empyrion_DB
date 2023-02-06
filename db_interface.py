@@ -171,13 +171,13 @@ class DataLoader:
 class ResourceLoader(DataLoader):
     ''' loads sqlalchemy objects with ORM from DB and stores '''
 
-    def load_resource(self, res_name=None):
+    def load_data(self, res_name=None):
         if res_name:
-            self._load_resource_single(res_name)
+            self._load_data_single(res_name)
         else:
-            self._load_resource_current()
+            self._load_data_current()
 
-    def _load_resource_single(self, res_name: str, res_id: int = None):
+    def _load_data_single(self, res_name: str, res_id: int = None):
         ''' loads single resource object to self.data'''
         # TODO: сделать так чтоб можно было передавать и name и id по желанию
         self.data = self.session.query(ResourceDB).filter(ResourceDB.resource_name == res_name).all()
@@ -186,44 +186,43 @@ class ResourceLoader(DataLoader):
         ''' loads all objects from item_table'''
         self.data = self.session.query(ResourceDB).all()
 
-    def _load_resource_current(self):
+    def _load_data_current(self):
         '''loads a tuples of indexes [(resource_id, place_id)]'''
         self.data = self.session.query(ResourceDB).join(resource_location).all()
 
 
 class ItemLoader(DataLoader):
-    def load_item(self, item_name=None):
+    def load_data(self, item_name=None):
         if item_name:
-            self._load_item_single(item_name)
+            self._load_data_single(item_name)
         else:
-            self._load_item_current()
+            self._load_data_current()
 
     def load_item_all(self):
         self.data = self.session.query(ItemDB).all()
 
-    def _load_item_single(self, item_name: str):
+    def _load_data_single(self, item_name: str):
         self.data = self.session.query(ItemDB).filter(ItemDB.item_name == item_name).all()
 
-    def _load_item_current(self):
+    def _load_data_current(self):
         self.data = self.session.query(ItemDB).join(MarketItemDB).all()
 
 
 class PoiLoader(DataLoader):
-    def load_poi(self, poi_name=None):
+    def load_data(self, poi_name=None):
         if poi_name:
-            self._load_poi_single(poi_name)
+            self._load_data_single(poi_name)
         else:
-            self._load_poi_current()
+            self._load_data_current()
 
     def load_poi_all(self):
         self.data = self.session.query(PoiDB).all()
 
-    def _load_poi_single(self, poi_name: str):
+    def _load_data_single(self, poi_name: str):
         self.data = self.session.query(PoiDB).filter(PoiDB.poi_name == poi_name).all()
 
-    def _load_poi_current(self):
+    def _load_data_current(self):
         self.data = self.session.query(PoiDB).join(poi_location).all()
-
 
 
 class TableLoader:
@@ -239,6 +238,7 @@ class TableLoader:
         self.res_table = []
 
     def load_obj(self, obj: DataLoader):
+        # TODO: доделать куда-то load_obj
         self.objects_list = obj.data
 
     def get_res_table(self):
@@ -250,7 +250,7 @@ class ResourceTable(TableLoader):
     def convert_res_data(self):
         self.raw_table = [(obj.resource_id, obj.resource_name, obj.places) for obj in self.objects_list]
 
-    def make_resource_table(self):
+    def make_table(self):
         ''' :return table format [(str, str...),]'''
         self.convert_res_data()
         res_table = []
@@ -258,6 +258,7 @@ class ResourceTable(TableLoader):
             row_table = [(row[1], el.place_name) for el in row[2]]
             res_table += row_table
         self.res_table = res_table
+        print(res_table)
         return self.res_table
 
 
@@ -266,7 +267,7 @@ class PoiTable(TableLoader):
     def convert_poi_data(self):
         self.poi_place_raw_table = [(obj.poi_id, obj.poi_name, obj.places) for obj in self.objects_list]
 
-    def make_poi_table(self):
+    def make_table(self):
         ''' :return table format [(str, str...),]'''
         self.convert_poi_data()
         res_table = []
@@ -281,7 +282,7 @@ class ItemTable(TableLoader):
     def convert_item_data(self):
         self.raw_table = [(obj.item_id, obj.item_name, obj.pois, obj.avg_price) for obj in self.objects_list]
 
-    def make_item_table(self):
+    def make_table(self):
         self.convert_item_data()
         res_table = []
         for row in self.raw_table:
@@ -297,11 +298,11 @@ class ItemTable(TableLoader):
 if __name__ == '__main__':
     # dc = DataCache()
     item_load: ItemLoader = ItemLoader()
-    item_load.load_item()
+    item_load.load_data()
 
     item_table = ItemTable(item_load)
     item_table.convert_item_data()
-    item_table.make_item_table()
+    item_table.make_table()
 
 
     # print(item_table.raw_table)
